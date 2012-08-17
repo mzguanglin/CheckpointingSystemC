@@ -58,6 +58,8 @@
 // the source.
 //
 
+#include <cstdlib>
+#include <string.h>
 #include "sysc/utils/sc_report.h"
 
 

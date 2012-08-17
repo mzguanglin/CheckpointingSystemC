@@ -135,6 +135,8 @@
 // sc_simcontext. Changed the boolean update_phase to an enum that shows all
 // the phases.
 
+#include <semaphore.h>
+
 #include "sysc/kernel/sc_cor_fiber.h"
 #include "sysc/kernel/sc_cor_pthread.h"
 #include "sysc/kernel/sc_cor_qt.h"
@@ -159,6 +161,8 @@
 #include "sysc/tracing/sc_trace.h"
 #include "sysc/utils/sc_mempool.h"
 #include "sysc/utils/sc_utils_ids.h"
+
+extern sem_t sem_ckpt; // export from mtcp.c. A semaphore that checkpoint thread waits for do ckpt.
 
 namespace sc_core {
 
@@ -807,6 +811,25 @@ sc_simcontext::initialize( bool no_crunch )
 void
 sc_simcontext::simulate( const sc_time& duration )
 {
+    // Get environment variable of CKPT_CYCLE
+    char *p=NULL;
+    sc_dt::uint64 ckpt_cycle = -1; /*initilize to maximum value*/
+
+    if ((p = getenv("CKPT_CYCLE"))) {
+        std::istringstream ss(p);
+        sc_dt::uint64 duration;
+        ss>>duration;
+        if (duration > 0 && duration <= ckpt_cycle) {
+            ckpt_cycle = duration;
+        }
+        else {
+            std::cout<<"specified CKPT_CYCLE must be 1 ~ "<<ckpt_cycle<<std::endl;
+        }
+    }
+    std::cout<<"CKPT_CYCLE = "<<ckpt_cycle<<std::endl;
+
+    sc_dt::uint64 cycle_counter = 0;
+
     initialize( true );
 
     if (sim_status() != SC_SIM_OK) {
@@ -884,6 +907,15 @@ sc_simcontext::simulate( const sc_time& duration )
 
 	} while( m_runnable->is_empty() && t != until_t );
 	if ( t > m_curr_time ) m_curr_time = t;
+
+	if (cycle_counter % ckpt_cycle == ckpt_cycle - 1) {
+            std::cout << "Now: it is time to checkpoint....." << std::endl;
+	    if (sem_post(&sem_ckpt) != 0) {
+	        std::cout << "ERROR: semaphore sem_ckpt can not be posted." << std::endl;
+	        exit(0);
+	    }
+	}
+	cycle_counter = (cycle_counter + 1) % ckpt_cycle;
 
     } while( t != until_t );
     m_in_simulator_control = false;

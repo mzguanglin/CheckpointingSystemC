@@ -347,6 +347,7 @@ static int TLS_PID_OFFSET(void) {
 #define GETTID() (int)syscall(SYS_gettid)
 
 static sem_t sem_start;
+sem_t sem_ckpt; // checkpoint sem, ref by SystemC kernel
 
 typedef struct Thread Thread;
 
@@ -1952,8 +1953,16 @@ static void *checkpointhread (void *dummy)
 	  mtcp_sys_kernel_gettid ());
 
   while (1) {
-    /* Wait a while between writing checkpoint files */
+    DPRINTF("wait for sem_ckpt...\n");
+    if (sem_wait(&sem_ckpt) != 0) {
+      MTCP_PRINTF("ERROR: semaphore sem_ckpt can not be wait.\n");
+      mtcp_abort ();
+    }
 
+    /** !!No need to sleep, we use semaphore now!!
+      * Wait a while between writing checkpoint files */
+
+    /*
     if (callback_sleep_between_ckpt == NULL)
     {
         memset (&sleeperiod, 0, sizeof sleeperiod);
@@ -1966,6 +1975,7 @@ static void *checkpointhread (void *dummy)
         (*callback_sleep_between_ckpt)(intervalsecs);
         DPRINTF("after callback_sleep_between_ckpt(%d)\n",intervalsecs);
     }
+    */
 
     mtcp_sys_gettimeofday (&started, NULL);
     checkpointsize = 0;

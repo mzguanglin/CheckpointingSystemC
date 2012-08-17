@@ -1,0 +1,8 @@
+objdir/*
+mtcp/*.[ot10]
+mtcp/*.so
+mtcp/*.map
+mtcp/*.orig
+mtcp/*.lis
+src/.cproject
+src/.project
