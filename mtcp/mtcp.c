@@ -76,6 +76,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/ioctl.h>
+#include <sys/personality.h>
 #include <termios.h>       // for tcdrain, tcsetattr, etc.
 #include <unistd.h>
 #ifdef SETJMP
@@ -645,6 +646,66 @@ void mtcp_init_dmtcp_info (int pid_virtualization_enabled,
   free_entry = free_fnptr;
 }
 
+
+/*****************************************************************************
+ *
+ *  This routine restarts the process, with the same argv, environ...
+ *
+ *****************************************************************************/
+static void restart_self() {
+#define MAX_ARGS 500
+
+	char *argv[MAX_ARGS+1];
+	FILE* fp;
+	if (NULL == (fp= fopen("/proc/self/cmdline", "r"))) {
+		MTCP_PRINTF("error openning /proc/self/cmdline\n");
+	}
+
+	char strings[10001] = "\0";
+	int num_read = fread(strings, 1, 1023, fp);
+	fclose(fp);
+
+	char *str = strings;
+	int i;
+	for (i = 0; str - strings < num_read && i < MAX_ARGS; i++) {
+		argv[i] = str;
+		while (*str++ != '\0')
+		      ;
+		}
+	argv[i] = NULL;
+
+	execv(argv[0], argv);  /* should never return */
+}
+
+/*****************************************************************************
+ *
+ *  This routine guarantees the process using ADDR_COMPAT_LAYOUT by restarting.
+ *
+ *  We need it because MTCP can't handle address confliction between mapped
+ *  libraries in checkpointed process and [vdso] in mtcp_restart. So we decide
+ *  to exploit the 2 different memory mapping layout.
+ *  Hence, mtcp_restart maps its [vdso] to lower area while checkpointed process
+ *  maps its libraries to higher area.
+ *
+ *****************************************************************************/
+static void set_compat_memory_layout() {
+	int pers = personality(0xffffffffUL); /* get current personality */
+	if (!(pers & ADDR_COMPAT_LAYOUT)) { /* if no compat layout ... */
+		DPRINTF("no compat layout\n");
+
+		if (pers == personality(pers | ADDR_COMPAT_LAYOUT)) {
+			/* if successfully set personality with compat layout */
+			DPRINTF("restart with compat layout\n");
+			restart_self();  /* should never return */
+			MTCP_PRINTF("error restart process with compat layout\n");
+			exit(0);
+		} else {
+			MTCP_PRINTF("error set personality\n");
+			exit(0);
+		}
+	}
+}
+
 /*****************************************************************************
  *
  *  This routine must be called at startup time to initiate checkpointing
@@ -669,6 +730,8 @@ void mtcp_init (char const *checkpointfilename,
                 int interval,
                 int clonenabledefault)
 {
+  set_compat_memory_layout();
+
   char *p, *tmp, *endp;
   Thread *ckptThreadDescriptor = & ckptThreadStorage;
 
