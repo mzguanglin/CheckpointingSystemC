@@ -163,6 +163,10 @@
 #include "sysc/utils/sc_utils_ids.h"
 
 extern sem_t sem_ckpt; // export from mtcp.c. A semaphore that checkpoint thread waits for do ckpt.
+extern sem_t sem_wait_ckpt_fini;
+extern int checkpoint_wall_clock_time_period;
+extern int restart_need_post_sem;
+int checkpoint_number = 10;
 
 namespace sc_core {
 
@@ -409,6 +413,27 @@ sc_notify_time_compare( const void* p1, const void* p2 )
 }
 
 
+int
+sc_checkpoint_time_compare( const void* p1, const void* p2 )
+{
+    const sc_checkpoint_event* et1 = static_cast<const sc_checkpoint_event*>( p1 );
+    const sc_checkpoint_event* et2 = static_cast<const sc_checkpoint_event*>( p2 );
+
+    const sc_time& t1 = et1->get_checkpoint_time();
+    const sc_time& t2 = et2->get_checkpoint_time();
+
+    if( t1 < t2 ) {
+	return 1;
+    } else if( t1 > t2 ) {
+	return -1;
+    } else {
+	return 0;
+    }
+}
+
+
+
+
 // ----------------------------------------------------------------------------
 //  CLASS : sc_simcontext
 //
@@ -442,7 +467,9 @@ sc_simcontext::init()
 
     reset_curr_proc();
     m_next_proc_id = -1;
+    m_checkpoint_simulation_time_period = SC_ZERO_TIME;
     m_timed_events = new sc_ppq<sc_event_timed*>( 128, sc_notify_time_compare );
+    m_checkpoint_timed_events = new sc_ppq<sc_checkpoint_event*>( 128, sc_checkpoint_time_compare );
     m_something_to_trace = false;
     m_runnable = new sc_runnable;
     m_time_params = new sc_time_params;
@@ -474,6 +501,7 @@ sc_simcontext::clean()
     m_child_objects.resize(0);
     m_delta_events.resize(0);
     delete m_timed_events;
+    delete m_checkpoint_timed_events;
     for( int i = m_trace_files.size() - 1; i >= 0; -- i ) {
 	delete m_trace_files[i];
     }
@@ -811,25 +839,6 @@ sc_simcontext::initialize( bool no_crunch )
 void
 sc_simcontext::simulate( const sc_time& duration )
 {
-    // Get environment variable of CKPT_CYCLE
-    char *p=NULL;
-    sc_dt::uint64 ckpt_cycle = -1; /*initilize to maximum value*/
-
-    if ((p = getenv("CKPT_CYCLE"))) {
-        std::istringstream ss(p);
-        sc_dt::uint64 duration;
-        ss>>duration;
-        if (duration > 0 && duration <= ckpt_cycle) {
-            ckpt_cycle = duration;
-        }
-        else {
-            std::cout<<"specified CKPT_CYCLE must be 1 ~ "<<ckpt_cycle<<std::endl;
-        }
-    }
-    std::cout<<"CKPT_CYCLE = "<<ckpt_cycle<<std::endl;
-
-    sc_dt::uint64 cycle_counter = 0;
-
     initialize( true );
 
     if (sim_status() != SC_SIM_OK) {
@@ -892,6 +901,78 @@ sc_simcontext::simulate( const sc_time& duration )
 	
 	do {
             t = next_time();
+            sc_time t_ckpt = next_checkpoint_time();
+
+            while ( t_ckpt != SC_ZERO_TIME && t_ckpt <= t ) { // do checkpoint
+            	//TODO:
+            	sc_checkpoint_event* ce = m_checkpoint_timed_events->extract_top();
+
+            	if (ce->get_periodicity_type() == sc_checkpoint_event::NONE_PERIODICITY)
+            	// NONE_PERIODICITY, just perform a checkpoint
+            	{
+            		// Perform checkpointing
+            		restart_need_post_sem = 1;
+    				std::cout<<"post NONE_PERIODICITY checkpoint sem.."<<std::endl;
+					if (sem_post(&sem_ckpt) != 0) {
+						std::cout << "ERROR: semaphore sem_ckpt can not be posted." << std::endl;
+						exit(0);
+					}
+					std::cout<<"wait to be resume.."<<std::endl;
+					if (sem_wait(&sem_wait_ckpt_fini) != 0) {
+						std::cout << "ERROR: semaphore sem_wait_ckpt_fini can not be posted." << std::endl;
+						exit(0);
+					}
+					std::cout<<"now resume"<<std::endl;
+
+                	delete ce;
+            	}
+
+            	else if (ce->get_periodicity_type() == sc_checkpoint_event::WALL_CLOCK_TIME_FIRST
+    					&& checkpoint_wall_clock_time_period != 0)
+            	// WALL_CLOCK_TIME_FIRST, perform a checkpoint, set flag.
+            	{
+            		// Perform checkpointing
+            		restart_need_post_sem = 1;
+            		std::cout<<"post WALL_CLOCK_TIME_FIRST checkpoint sem.."<<std::endl;
+					if (sem_post(&sem_ckpt) != 0) {
+						std::cout << "ERROR: semaphore sem_ckpt can not be posted." << std::endl;
+						exit(0);
+					}
+					std::cout<<"wait to be resume.."<<std::endl;
+					if (sem_wait(&sem_wait_ckpt_fini) != 0) {
+						std::cout << "ERROR: semaphore sem_wait_ckpt_fini can not be posted." << std::endl;
+						exit(0);
+					}
+					std::cout<<"now resume"<<std::endl;
+
+	          		delete ce;
+            	} else if (ce->get_periodicity_type() == sc_checkpoint_event::SIMULATION_TIME
+    					&& m_checkpoint_simulation_time_period != SC_ZERO_TIME
+    					&& m_checkpoint_simulation_time_period == ce->get_checkpoint_sc_period()
+    					&& checkpoint_wall_clock_time_period == 0)
+            	// SIMULATION_TIME periodicity, perform a checkpoint, re-create an event
+            	{
+            		// Perform checkpointing
+            		restart_need_post_sem = 1;
+            		std::cout<<"post SIMULATION_TIME checkpoint sem.."<<std::endl;
+					if (sem_post(&sem_ckpt) != 0) {
+						std::cout << "ERROR: semaphore sem_ckpt can not be posted." << std::endl;
+						exit(0);
+					}
+					std::cout<<"wait to be resume.."<<std::endl;
+					if (sem_wait(&sem_wait_ckpt_fini) != 0) {
+						std::cout << "ERROR: semaphore sem_wait_ckpt_fini can not be posted." << std::endl;
+						exit(0);
+					}
+					std::cout<<"now resume"<<std::endl;
+
+					// re-create an checkpoint event
+            		(*ce) += m_checkpoint_simulation_time_period;
+            		m_checkpoint_timed_events->insert(ce);
+            	}
+
+            	t_ckpt = next_checkpoint_time();
+            }
 
 	    // PROCESS TIMED NOTIFICATIONS
 
@@ -907,15 +988,6 @@ sc_simcontext::simulate( const sc_time& duration )
 
 	} while( m_runnable->is_empty() && t != until_t );
 	if ( t > m_curr_time ) m_curr_time = t;
-
-	if (cycle_counter % ckpt_cycle == ckpt_cycle - 1) {
-            std::cout << "Now: it is time to checkpoint....." << std::endl;
-	    if (sem_post(&sem_ckpt) != 0) {
-	        std::cout << "ERROR: semaphore sem_ckpt can not be posted." << std::endl;
-	        exit(0);
-	    }
-	}
-	cycle_counter = (cycle_counter + 1) % ckpt_cycle;
 
     } while( t != until_t );
     m_in_simulator_control = false;
@@ -1196,6 +1268,16 @@ sc_simcontext::next_time()
     return SC_ZERO_TIME;
 }
 
+const sc_time
+sc_simcontext::next_checkpoint_time()
+{
+    if( m_checkpoint_timed_events->size() ) {
+    	sc_checkpoint_event* ce = m_checkpoint_timed_events->top();
+        return ce->get_checkpoint_time();
+    }
+    return SC_ZERO_TIME;
+}
+
 
 void
 sc_simcontext::remove_delta_event( sc_event* e )
@@ -1224,6 +1306,160 @@ sc_simcontext::trace_cycle( bool delta_cycle )
 	    l_trace_files[i]->cycle( delta_cycle );
 	} while( -- i >= 0 );
     }
+}
+
+/**
+ * checkpoint this simulation at next simulation time step
+ */
+void sc_simcontext::sc_checkpoint(){
+    sc_checkpoint(sc_time(time_stamp()));
+}
+
+/**
+ * checkpoint this simulation at a specified simulation time.
+ * @param time an sc_time argument
+ */
+void sc_simcontext::sc_checkpoint(const sc_time& t) {
+	if (t >= m_curr_time) {
+		sc_checkpoint_event* e = new sc_checkpoint_event(t, sc_checkpoint_event::NONE_PERIODICITY, SC_ZERO_TIME);
+		m_checkpoint_timed_events->insert(e);
+		return;
+	}
+
+	if (t < m_curr_time){
+		std::cout<<"Sorry, t < m_curr_time, you can not checkpoint the past."<<std::endl;
+	}
+}
+
+/**
+ * checkpoint this simulation at a specified simulation time.
+ * @param val time value
+ * @param unit unit of time
+ */
+void sc_simcontext::sc_checkpoint(double v, sc_time_unit tu) {
+	sc_checkpoint( sc_time( v, tu) );
+}
+
+/**
+ * set checkpoint period by simulation time.
+ * We perform an instant checkpoint once this function is called with non-SC_ZERO_TIME.
+ * Caution: we don't support wall clock periodicity and simulation time periodicity
+ * simultaneously.
+ * (1) Set up wall clock periodicity will replace simulation time periodicity.
+ * (2) However, wall clock periodicity can't be replaced by simulation time periodicity or canceled.
+ * @param time period, SC_ZERO_TIME to disable periodicity.
+ */
+void sc_simcontext::sc_set_checkpoint_period(const sc_time& time) {
+
+	// a restrict implementation. can not set up if wall_clock_time_periodcity has been set up before.
+	if (checkpoint_wall_clock_time_period == 0 && m_checkpoint_simulation_time_period != time) {
+		if (time != SC_ZERO_TIME) { //set up or change period
+			// perform an instant checkpoint event;
+			sc_checkpoint_event* e = new sc_checkpoint_event(this->m_curr_time, sc_checkpoint_event::SIMULATION_TIME, time);
+			m_checkpoint_timed_events->insert(e);
+		}
+
+		// for set up period, change period, or disable period
+		m_checkpoint_simulation_time_period = time;
+
+		return;
+	}
+
+	//echo warnings
+	if (checkpoint_wall_clock_time_period != 0 && time != SC_ZERO_TIME) {
+		std::cout<<"Sorry, we can not change period settings any more because you once set up wall_clock_time_periodcity."<<std::endl;
+	} else if (m_checkpoint_simulation_time_period == time && time != SC_ZERO_TIME) {
+		std::cout<<"m_checkpoint_simulation_time_period == time, meaningless."<<std::endl;
+	}
+}
+
+/**
+ * set checkpoint period by simulation time.
+ * We perform an instant checkpoint once this function is called with non-zero sc_time.
+ * Caution: we don't support wall clock periodicity and simulation time periodicity
+ * simultaneously.
+ * (1) Set up wall clock periodicity will replace simulation time periodicity.
+ * (2) However, wall clock periodicity can't be replaced by simulation time periodicity or canceled.
+ * @param v time value
+ * @param tu time unit
+ */
+void sc_simcontext::sc_set_checkpoint_period(double v, sc_time_unit tu) {
+	sc_time t( v, tu);
+	sc_set_checkpoint_period(t );
+}
+
+/**
+ * set checkpoint period by wall clock.
+ * We perform an instant checkpoint once this function is called with non-zero sc_time.
+ * Caution: we don't support wall clock periodicity and simulation time periodicity
+ * simultaneously.
+ * (1) Set up wall clock periodicity will replace simulation time periodicity.
+ * (2) However, wall clock periodicity can't be replaced by simulation time periodicity or canceled.
+ * @param seconds of a wall clock.
+ */
+void sc_simcontext::sc_set_checkpoint_period(int seconds) {
+
+	// a restrict implementation: can't change or disable wall clock period once set it up.
+	if (checkpoint_wall_clock_time_period == 0 && seconds > 0) { // set up
+
+		checkpoint_wall_clock_time_period = seconds;
+
+		// disable simulation time periodicity.
+		sc_set_checkpoint_period(SC_ZERO_TIME);
+
+		// schedule an instant checkpoint event;
+		sc_checkpoint_event* e = new sc_checkpoint_event(this->m_curr_time, sc_checkpoint_event::WALL_CLOCK_TIME_FIRST, SC_ZERO_TIME);
+		m_checkpoint_timed_events->insert(e);
+
+		return;
+	}
+
+	// echo warnings
+	if (checkpoint_wall_clock_time_period == seconds) {
+		std::cout<<"checkpoint_wall_clock_time_period == seconds, meaningless."<<std::endl;
+	} else if (checkpoint_wall_clock_time_period != 0 && seconds == 0) {
+		std::cout<<"Sorry, we can not disable wall_clock_time_periodcity once set up."<<std::endl;
+	}
+
+	/*
+	 * we also plan a flexible implementation. It's a bit complex and costly.
+	if (checkpoint_wall_clock_time_period != seconds) {
+		if (checkpoint_wall_clock_time_period && seconds) { // change period
+			// kill thread
+
+			// re-create a timer thread - inserting a checkpoint event periodically
+
+		} else if (!checkpoint_wall_clock_time_period && seconds ) { //set period
+			// disable simulation time periodicity.
+			sc_set_checkpoint_period(SC_ZERO_TIME);
+
+			// create a timer thread - inserting a checkpoint event periodically
+
+		} else if (checkpoint_wall_clock_time_period && !seconds) { // disable periodicity
+			// kill thread
+
+		}
+
+		checkpoint_wall_clock_time_period = seconds;
+	}
+	*/
+}
+
+/**
+ * set number of checkpoint images we will keep.
+ * In default, we keep 10 checkpoint images.
+ * @param num
+ */
+void sc_simcontext::sc_set_checkpoint_number(sc_dt::sc_digit num) {
+	checkpoint_number = num;
+}
+
+/**
+ * get number of checkpoint images we will keep.
+ * @return number
+ */
+sc_dt::sc_digit sc_simcontext::sc_get_checkpoint_number() {
+	return checkpoint_number;
 }
 
 // ----------------------------------------------------------------------------

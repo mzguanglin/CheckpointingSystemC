@@ -4,5 +4,11 @@ mtcp/*.so
 mtcp/*.map
 mtcp/*.orig
 mtcp/*.lis
+mtcp/.cproject
+mtcp/.project
+mtcp/mtcp_restart
+mtcp/readmtcp
+mtcp/testmtc*
+mtcp/threadtest
 src/.cproject
 src/.project

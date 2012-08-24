@@ -348,6 +348,9 @@ static int TLS_PID_OFFSET(void) {
 
 static sem_t sem_start;
 sem_t sem_ckpt; // checkpoint sem, ref by SystemC kernel
+sem_t sem_wait_ckpt_fini;
+int checkpoint_wall_clock_time_period = 0;
+int restart_need_post_sem = 0;
 
 typedef struct Thread Thread;
 
@@ -1940,6 +1943,14 @@ static void *checkpointhread (void *dummy)
     DPRINTF("waiting for other threads after restore\n");
     wait_for_all_restored ();
     DPRINTF("resuming after restore\n");
+
+    if (restart_need_post_sem) { // not restart from wall clock period checkpoint, so we used semaphore before
+    	restart_need_post_sem = 0;
+    	if (sem_post(&sem_wait_ckpt_fini) != 0) {
+  		  MTCP_PRINTF("ERROR: semaphore sem_wait_ckpt_fini can not be post.\n");
+  		  mtcp_abort ();
+  		}
+    }
   }
 
   /* Reset the verification counter - on init, this will set it to it's start
@@ -1953,29 +1964,29 @@ static void *checkpointhread (void *dummy)
 	  mtcp_sys_kernel_gettid ());
 
   while (1) {
-    DPRINTF("wait for sem_ckpt...\n");
-    if (sem_wait(&sem_ckpt) != 0) {
-      MTCP_PRINTF("ERROR: semaphore sem_ckpt can not be wait.\n");
-      mtcp_abort ();
-    }
 
-    /** !!No need to sleep, we use semaphore now!!
-      * Wait a while between writing checkpoint files */
+	  if (checkpoint_wall_clock_time_period && restart_need_post_sem == 0) {
+		    if (callback_sleep_between_ckpt == NULL)
+		    {
+				MTCP_PRINTF("wait %d seconds ...\n", checkpoint_wall_clock_time_period);
+		    	memset (&sleeperiod, 0, sizeof sleeperiod);
+		        sleeperiod.tv_sec = checkpoint_wall_clock_time_period;
+		        while (nanosleep (&sleeperiod, &sleeperiod) < 0 && errno == EINTR) {}
+		    }
+		    else
+		    {
+		        DPRINTF("before callback_sleep_between_ckpt(%d)\n",(int)checkpoint_wall_clock_time_period);
+		        (*callback_sleep_between_ckpt)(checkpoint_wall_clock_time_period);
+		        DPRINTF("after callback_sleep_between_ckpt(%d)\n",checkpoint_wall_clock_time_period);
+		    }
+	  } else {
 
-    /*
-    if (callback_sleep_between_ckpt == NULL)
-    {
-        memset (&sleeperiod, 0, sizeof sleeperiod);
-        sleeperiod.tv_sec = intervalsecs;
-        while (nanosleep (&sleeperiod, &sleeperiod) < 0 && errno == EINTR) {}
-    }
-    else
-    {
-        DPRINTF("before callback_sleep_between_ckpt(%d)\n",intervalsecs);
-        (*callback_sleep_between_ckpt)(intervalsecs);
-        DPRINTF("after callback_sleep_between_ckpt(%d)\n",intervalsecs);
-    }
-    */
+		  DPRINTF("wait for sem_ckpt...\n");
+		if (sem_wait(&sem_ckpt) != 0) {
+		  MTCP_PRINTF("ERROR: semaphore sem_ckpt can not be wait.\n");
+		  mtcp_abort ();
+		}
+	  }
 
     mtcp_sys_gettimeofday (&started, NULL);
     checkpointsize = 0;
@@ -2223,6 +2234,15 @@ again:
      *   -Wl,-export-dynamic to make it visible.
      */
     mtcpHookPostCheckpoint();
+
+
+  if (restart_need_post_sem) {
+	  restart_need_post_sem = 0;
+	  if (sem_post(&sem_wait_ckpt_fini) != 0) {
+		  MTCP_PRINTF("ERROR: semaphore sem_wait_ckpt_fini can not be post.\n");
+		  mtcp_abort ();
+		}
+  }
 
     /* Resume all threads.  But if we're doing a checkpoint verify,
      * abort all threads except the main thread, as we don't want them

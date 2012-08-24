@@ -103,6 +103,8 @@
 #include "sysc/utils/sc_hash.h"
 #include "sysc/utils/sc_pq.h"
 
+
+
 namespace sc_core {
 
 // forward declarations
@@ -166,6 +168,62 @@ extern void sc_set_stop_mode( sc_stop_mode mode );
 extern sc_stop_mode sc_get_stop_mode();
 
 
+
+
+
+
+int sc_checkpoint_time_compare( const void*, const void* );
+
+class sc_checkpoint_event {
+
+public:
+
+	enum CKPT_PERIODICITY_TYPE {
+		NONE_PERIODICITY,
+		SIMULATION_TIME,
+		WALL_CLOCK_TIME_FIRST
+	};
+
+	sc_checkpoint_event(const sc_time& checkpoint_time,
+		sc_checkpoint_event::CKPT_PERIODICITY_TYPE checkpoint_periodicity_type,
+		const sc_time& checkpoint_sc_period)
+		:
+		m_checkpoint_time(checkpoint_time),
+		m_checkpoint_periodicity_type(checkpoint_periodicity_type),
+		m_checkpoint_sc_period(checkpoint_sc_period)
+	{}
+
+	~sc_checkpoint_event()
+	{}
+
+	const sc_time& get_checkpoint_time() const {
+		return m_checkpoint_time;
+	}
+
+	const sc_time& get_checkpoint_sc_period() const {
+		return m_checkpoint_sc_period;
+	}
+
+	enum CKPT_PERIODICITY_TYPE get_periodicity_type() const {
+		return m_checkpoint_periodicity_type;
+	}
+
+	sc_checkpoint_event& operator += ( const sc_time& t) {
+		m_checkpoint_time += t;
+	    return *this;
+	}
+
+private:
+	sc_checkpoint_event(){}
+
+private:
+	sc_time m_checkpoint_time;
+	enum CKPT_PERIODICITY_TYPE m_checkpoint_periodicity_type;
+	sc_time m_checkpoint_sc_period;
+};
+
+
+
 // ----------------------------------------------------------------------------
 //  CLASS : sc_simcontext
 //
@@ -174,6 +232,7 @@ extern sc_stop_mode sc_get_stop_mode();
 
 class sc_simcontext
 {
+	friend class sc_checkpoint_event;
     friend class sc_event;
     friend class sc_module;
     friend class sc_object;
@@ -276,6 +335,17 @@ public:
     void prepare_to_simulate();
     inline void initial_crunch( bool no_crunch );
     const sc_time next_time(); 
+    const sc_time next_checkpoint_time();
+
+
+    void sc_checkpoint();
+    void sc_checkpoint(const sc_time& t);
+    void sc_checkpoint(double v, sc_time_unit tu);
+    void sc_set_checkpoint_period(const sc_time& time);
+    void sc_set_checkpoint_period(double v, sc_time_unit tu);
+    void sc_set_checkpoint_period(int seconds);
+    void sc_set_checkpoint_number(sc_dt::sc_digit num);
+    sc_dt::sc_digit sc_get_checkpoint_number();
 
 private:
 
@@ -333,6 +403,9 @@ private:
 
     std::vector<sc_event*>      m_delta_events;
     sc_ppq<sc_event_timed*>*    m_timed_events;
+    sc_ppq<sc_checkpoint_event*>* m_checkpoint_timed_events;
+
+    sc_time m_checkpoint_simulation_time_period; // must initilize as 0
 
     std::vector<sc_trace_file*> m_trace_files;
     bool                        m_something_to_trace;
