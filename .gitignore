@@ -12,3 +12,14 @@ mtcp/testmtc*
 mtcp/threadtest
 src/.cproject
 src/.project
+src/sysc/utils/mtcp/*.[ot10]
+src/sysc/utils/mtcp/*.so
+src/sysc/utils/mtcp/*.map
+src/sysc/utils/mtcp/*.orig
+src/sysc/utils/mtcp/*.lis
+src/sysc/utils/mtcp/.cproject
+src/sysc/utils/mtcp/.project
+src/sysc/utils/mtcp/mtcp_restart
+src/sysc/utils/mtcp/readmtcp
+src/sysc/utils/mtcp/testmtc*
+src/sysc/utils/mtcp/threadtest

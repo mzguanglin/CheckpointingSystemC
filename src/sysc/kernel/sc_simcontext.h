@@ -406,6 +406,7 @@ private:
     sc_ppq<sc_checkpoint_event*>* m_checkpoint_timed_events;
 
     sc_time m_checkpoint_simulation_time_period; // must initilize as 0
+    int m_checkpoint_wall_clock_time_period; // must initilize as 0
 
     std::vector<sc_trace_file*> m_trace_files;
     bool                        m_something_to_trace;

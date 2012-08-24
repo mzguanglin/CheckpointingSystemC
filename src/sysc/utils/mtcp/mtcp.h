@@ -47,6 +47,8 @@ int mtcp_wrapper_clone (int (*fn) (void *arg), void *child_stack, int flags, voi
 int mtcp_ok (void);
 int mtcp_no (void);
 
+void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next);
+
 __attribute__ ((visibility ("hidden"))) void * mtcp_safemmap (void *start, size_t length, int prot, int flags, int fd, off_t offset);
 
 

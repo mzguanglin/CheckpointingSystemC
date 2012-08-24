@@ -135,7 +135,6 @@
 // sc_simcontext. Changed the boolean update_phase to an enum that shows all
 // the phases.
 
-#include <semaphore.h>
 
 #include "sysc/kernel/sc_cor_fiber.h"
 #include "sysc/kernel/sc_cor_pthread.h"
@@ -161,11 +160,8 @@
 #include "sysc/tracing/sc_trace.h"
 #include "sysc/utils/sc_mempool.h"
 #include "sysc/utils/sc_utils_ids.h"
+#include "sysc/utils/mtcp/mtcp.h"
 
-extern sem_t sem_ckpt; // export from mtcp.c. A semaphore that checkpoint thread waits for do ckpt.
-extern sem_t sem_wait_ckpt_fini;
-extern int checkpoint_wall_clock_time_period;
-extern int restart_need_post_sem;
 int checkpoint_number = 10;
 
 namespace sc_core {
@@ -468,6 +464,7 @@ sc_simcontext::init()
     reset_curr_proc();
     m_next_proc_id = -1;
     m_checkpoint_simulation_time_period = SC_ZERO_TIME;
+    m_checkpoint_wall_clock_time_period = 0;
     m_timed_events = new sc_ppq<sc_event_timed*>( 128, sc_notify_time_compare );
     m_checkpoint_timed_events = new sc_ppq<sc_checkpoint_event*>( 128, sc_checkpoint_time_compare );
     m_something_to_trace = false;
@@ -911,60 +908,27 @@ sc_simcontext::simulate( const sc_time& duration )
             	// NONE_PERIODICITY, just perform a checkpoint
             	{
             		// Perform checkpointing
-            		restart_need_post_sem = 1;
-    				std::cout<<"post NONE_PERIODICITY checkpoint sem.."<<std::endl;
-					if (sem_post(&sem_ckpt) != 0) {
-						std::cout << "ERROR: semaphore sem_ckpt can not be posted." << std::endl;
-						exit(0);
-					}
-					std::cout<<"wait to be resume.."<<std::endl;
-					if (sem_wait(&sem_wait_ckpt_fini) != 0) {
-						std::cout << "ERROR: semaphore sem_wait_ckpt_fini can not be posted." << std::endl;
-						exit(0);
-					}
-					std::cout<<"now resume"<<std::endl;
+            		do_checkpoint_by_sem("post NONE_PERIODICITY checkpoint sem..", 0);
 
                 	delete ce;
             	}
 
             	else if (ce->get_periodicity_type() == sc_checkpoint_event::WALL_CLOCK_TIME_FIRST
-    					&& checkpoint_wall_clock_time_period != 0)
+    					&& m_checkpoint_wall_clock_time_period != 0)
             	// WALL_CLOCK_TIME_FIRST, perform a checkpoint, set flag.
             	{
             		// Perform checkpointing
-            		restart_need_post_sem = 1;
-            		std::cout<<"post WALL_CLOCK_TIME_FIRST checkpoint sem.."<<std::endl;
-					if (sem_post(&sem_ckpt) != 0) {
-						std::cout << "ERROR: semaphore sem_ckpt can not be posted." << std::endl;
-						exit(0);
-					}
-					std::cout<<"wait to be resume.."<<std::endl;
-					if (sem_wait(&sem_wait_ckpt_fini) != 0) {
-						std::cout << "ERROR: semaphore sem_wait_ckpt_fini can not be posted." << std::endl;
-						exit(0);
-					}
-					std::cout<<"now resume"<<std::endl;
+            		do_checkpoint_by_sem("post WALL_CLOCK_TIME_FIRST checkpoint sem..", m_checkpoint_wall_clock_time_period);
 
 	          		delete ce;
             	} else if (ce->get_periodicity_type() == sc_checkpoint_event::SIMULATION_TIME
     					&& m_checkpoint_simulation_time_period != SC_ZERO_TIME
     					&& m_checkpoint_simulation_time_period == ce->get_checkpoint_sc_period()
-    					&& checkpoint_wall_clock_time_period == 0)
+    					&& m_checkpoint_wall_clock_time_period == 0)
             	// SIMULATION_TIME periodicity, perform a checkpoint, re-create an event
             	{
             		// Perform checkpointing
-            		restart_need_post_sem = 1;
-            		std::cout<<"post SIMULATION_TIME checkpoint sem.."<<std::endl;
-					if (sem_post(&sem_ckpt) != 0) {
-						std::cout << "ERROR: semaphore sem_ckpt can not be posted." << std::endl;
-						exit(0);
-					}
-					std::cout<<"wait to be resume.."<<std::endl;
-					if (sem_wait(&sem_wait_ckpt_fini) != 0) {
-						std::cout << "ERROR: semaphore sem_wait_ckpt_fini can not be posted." << std::endl;
-						exit(0);
-					}
-					std::cout<<"now resume"<<std::endl;
+            		do_checkpoint_by_sem("post SIMULATION_TIME checkpoint sem..", 0);
 
 					// re-create an checkpoint event
             		(*ce) += m_checkpoint_simulation_time_period;
@@ -1352,7 +1316,7 @@ void sc_simcontext::sc_checkpoint(double v, sc_time_unit tu) {
 void sc_simcontext::sc_set_checkpoint_period(const sc_time& time) {
 
 	// a restrict implementation. can not set up if wall_clock_time_periodcity has been set up before.
-	if (checkpoint_wall_clock_time_period == 0 && m_checkpoint_simulation_time_period != time) {
+	if (m_checkpoint_wall_clock_time_period == 0 && m_checkpoint_simulation_time_period != time) {
 		if (time != SC_ZERO_TIME) { //set up or change period
 			// perform an instant checkpoint event;
 			sc_checkpoint_event* e = new sc_checkpoint_event(this->m_curr_time, sc_checkpoint_event::SIMULATION_TIME, time);
@@ -1366,7 +1330,7 @@ void sc_simcontext::sc_set_checkpoint_period(const sc_time& time) {
 	}
 
 	//echo warnings
-	if (checkpoint_wall_clock_time_period != 0 && time != SC_ZERO_TIME) {
+	if (m_checkpoint_wall_clock_time_period != 0 && time != SC_ZERO_TIME) {
 		std::cout<<"Sorry, we can not change period settings any more because you once set up wall_clock_time_periodcity."<<std::endl;
 	} else if (m_checkpoint_simulation_time_period == time && time != SC_ZERO_TIME) {
 		std::cout<<"m_checkpoint_simulation_time_period == time, meaningless."<<std::endl;
@@ -1400,9 +1364,9 @@ void sc_simcontext::sc_set_checkpoint_period(double v, sc_time_unit tu) {
 void sc_simcontext::sc_set_checkpoint_period(int seconds) {
 
 	// a restrict implementation: can't change or disable wall clock period once set it up.
-	if (checkpoint_wall_clock_time_period == 0 && seconds > 0) { // set up
+	if (m_checkpoint_wall_clock_time_period == 0 && seconds > 0) { // set up
 
-		checkpoint_wall_clock_time_period = seconds;
+		m_checkpoint_wall_clock_time_period = seconds;
 
 		// disable simulation time periodicity.
 		sc_set_checkpoint_period(SC_ZERO_TIME);
@@ -1415,32 +1379,32 @@ void sc_simcontext::sc_set_checkpoint_period(int seconds) {
 	}
 
 	// echo warnings
-	if (checkpoint_wall_clock_time_period == seconds) {
-		std::cout<<"checkpoint_wall_clock_time_period == seconds, meaningless."<<std::endl;
-	} else if (checkpoint_wall_clock_time_period != 0 && seconds == 0) {
+	if (m_checkpoint_wall_clock_time_period == seconds) {
+		std::cout<<"m_checkpoint_wall_clock_time_period == seconds, meaningless."<<std::endl;
+	} else if (m_checkpoint_wall_clock_time_period != 0 && seconds == 0) {
 		std::cout<<"Sorry, we can not disable wall_clock_time_periodcity once set up."<<std::endl;
 	}
 
 	/*
 	 * we also plan a flexible implementation. It's a bit complex and costly.
-	if (checkpoint_wall_clock_time_period != seconds) {
-		if (checkpoint_wall_clock_time_period && seconds) { // change period
+	if (m_checkpoint_wall_clock_time_period != seconds) {
+		if (m_checkpoint_wall_clock_time_period && seconds) { // change period
 			// kill thread
 
 			// re-create a timer thread - inserting a checkpoint event periodically
 
-		} else if (!checkpoint_wall_clock_time_period && seconds ) { //set period
+		} else if (!m_checkpoint_wall_clock_time_period && seconds ) { //set period
 			// disable simulation time periodicity.
 			sc_set_checkpoint_period(SC_ZERO_TIME);
 
 			// create a timer thread - inserting a checkpoint event periodically
 
-		} else if (checkpoint_wall_clock_time_period && !seconds) { // disable periodicity
+		} else if (m_checkpoint_wall_clock_time_period && !seconds) { // disable periodicity
 			// kill thread
 
 		}
 
-		checkpoint_wall_clock_time_period = seconds;
+		m_checkpoint_wall_clock_time_period = seconds;
 	}
 	*/
 }
