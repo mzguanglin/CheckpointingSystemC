@@ -1878,30 +1878,40 @@ static void restore_term_settings() {
 
 /*************************************************************************
  *
- *  This executes as a thread.  It sleeps for the checkpoint interval
- *    seconds, then wakes to write the checkpoint file.
+ *  Do a checkpoint immediately by use of semaphore.
+ *  We use this because we have replace sleep() in checkpointhread() by semaphore.
+ *  @param comments
+ *  @param wall_clock_sleep_seconds_next non-zero if you want to use sleep() later
  *
  *************************************************************************/
 void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next)
 {
-	restart_need_post_sem = 1;
-	MTCP_PRINTF("%s\n", comments);
+	if (checkpoint_wall_clock_time_period == 0) {
+		restart_need_post_sem = 1;
+		MTCP_PRINTF("%s\n", comments);
 
-	if (wall_clock_sleep_seconds_next > 0) {
-		checkpoint_wall_clock_time_period = wall_clock_sleep_seconds_next;
+		if (wall_clock_sleep_seconds_next > 0) {
+			checkpoint_wall_clock_time_period = wall_clock_sleep_seconds_next;
+		}
+
+		if (sem_post(&sem_ckpt) != 0) {
+			MTCP_PRINTF("ERROR: semaphore sem_ckpt can not be posted.\n");
+			exit(0);
+		}
+
+		DPRINTF("wait to be resumed... from %s\n", comments);
+		if (sem_wait(&sem_wait_ckpt_fini) != 0) {
+			MTCP_PRINTF("ERROR: semaphore sem_wait_ckpt_fini can not be posted.\n");
+			exit(0);
+		}
+		DPRINTF("now resume from %s\n", comments);
+		return;
 	}
 
-	if (sem_post(&sem_ckpt) != 0) {
-		MTCP_PRINTF("ERROR: semaphore sem_ckpt can not be posted.\n");
-		exit(0);
+	// echo warnings
+	if (checkpoint_wall_clock_time_period != 0){
+		MTCP_PRINTF("WARNING: you had switched to wall clock periodicity before, can not change any more.\n");
 	}
-
-	DPRINTF("wait to be resumed... from %s\n", comments);
-	if (sem_wait(&sem_wait_ckpt_fini) != 0) {
-		MTCP_PRINTF("ERROR: semaphore sem_wait_ckpt_fini can not be posted.\n");
-		exit(0);
-	}
-	DPRINTF("now resume from %s\n", comments);
 }
 
 /*************************************************************************
