@@ -44,13 +44,13 @@
 
 #include "sysc/kernel/sc_cmnhdr.h"
 #include "sysc/kernel/sc_externs.h"
-#include "mtcp.h"
+#include "sysc/utils/mtcp/mtcp.h"
 
 
 int
 main( int argc, char* argv[] )
 {
-	mtcp_init("systemc.mtcp", 1, 1);
+	mtcp_init();
 	mtcp_ok();
 	return sc_core::sc_elab_and_sim( argc, argv );
 }

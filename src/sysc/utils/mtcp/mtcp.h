@@ -40,14 +40,16 @@ void mtcp_init_dmtcp_info (int pid_virtualization_enabled,
                            void *sigaction_fnptr,
                            void *malloc_fnptr,
                            void *free_fnptr);
-void mtcp_init (char const *checkpointfilename,
+void mtcp_init (/*char const *checkpointfilename,
                 int interval,
-                int clonenabledefault);
+                int clonenabledefault*/);
 int mtcp_wrapper_clone (int (*fn) (void *arg), void *child_stack, int flags, void *arg);
 int mtcp_ok (void);
 int mtcp_no (void);
 
 void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next);
+void set_ckpt_num_limit(int limit);
+int get_ckpt_num_limit();
 
 __attribute__ ((visibility ("hidden"))) void * mtcp_safemmap (void *start, size_t length, int prot, int flags, int fd, off_t offset);
 

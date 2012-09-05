@@ -94,6 +94,7 @@
 #define MTCP_SYS_STRLEN
 #define MTCP_SYS_GET_SET_THREAD_AREA
 #include "mtcp_internal.h"
+#include "cxx-utils/c_interface.h"
 
 // static int WAIT=1;
 // static int WAIT=0;
@@ -351,6 +352,7 @@ static sem_t sem_ckpt; // checkpoint sem, ref by SystemC kernel
 static sem_t sem_wait_ckpt_fini;
 static int checkpoint_wall_clock_time_period = 0;
 static int restart_need_post_sem = 0;
+static int ckpt_num_limit = 10;
 
 typedef struct Thread Thread;
 
@@ -730,9 +732,9 @@ static void set_compat_memory_layout() {
  *	                               default is 0, ie, don't ever verify
  *
  *****************************************************************************/
-void mtcp_init (char const *checkpointfilename,
+void mtcp_init (/*char const *checkpointfilename,
                 int interval,
-                int clonenabledefault)
+                int clonenabledefault*/)
 {
   set_compat_memory_layout();
 
@@ -790,9 +792,9 @@ void mtcp_init (char const *checkpointfilename,
   }
 #endif
 
-  intervalsecs = interval;
+  //intervalsecs = interval;
 
-  update_checkpoint_filename(checkpointfilename);
+  update_checkpoint_filename("systemc.ckpt");
 
   DPRINTF("main tid %d\n", mtcp_sys_kernel_gettid ());
   /* If MTCP_INIT_PAUSE set, sleep 15 seconds and allow for gdb attach. */
@@ -803,7 +805,7 @@ void mtcp_init (char const *checkpointfilename,
   }
 
   // save this away where it's easy to get
-  threadenabledefault = clonenabledefault;
+  threadenabledefault = 1;//clonenabledefault;
 
   p = getenv ("MTCP_SHOWTIMING");
   showtiming = ((p != NULL) && (*p & 1));
@@ -1888,7 +1890,7 @@ void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next)
 {
 	if (checkpoint_wall_clock_time_period == 0) {
 		restart_need_post_sem = 1;
-		MTCP_PRINTF("%s\n", comments);
+		DPRINTF("%s\n", comments);
 
 		if (wall_clock_sleep_seconds_next > 0) {
 			checkpoint_wall_clock_time_period = wall_clock_sleep_seconds_next;
@@ -1912,6 +1914,14 @@ void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next)
 	if (checkpoint_wall_clock_time_period != 0){
 		MTCP_PRINTF("WARNING: you had switched to wall clock periodicity before, can not change any more.\n");
 	}
+}
+
+void set_ckpt_num_limit(int limit) {
+	ckpt_num_limit = limit;
+}
+
+int get_ckpt_num_limit() {
+	return ckpt_num_limit;
 }
 
 /*************************************************************************
@@ -3408,7 +3418,7 @@ static void preprocess_special_segments(int *vsyscall_exists)
       int ret = mprotect(area.addr + area.size, 0x1000,
                          PROT_READ | PROT_WRITE | PROT_EXEC);
       if (ret == 0) {
-        MTCP_PRINTF("bottom-most page of stack (page with highest address)\n"
+        DPRINTF("bottom-most page of stack (page with highest address)\n"
                     "  was invisible in /proc/self/maps.\n"
                     "  It is made visible again now.\n");
       }
@@ -3984,12 +3994,22 @@ static void *mtcp_get_tls_base_addr(void)
 
 static void renametempoverperm (void)
 {
-  if (rename (temp_checkpointfilename, perm_checkpointfilename) < 0) {
+	char *path = get_next_ckpt_img_path(ckpt_num_limit);
+	if (rename (temp_checkpointfilename, path) < 0) {
     MTCP_PRINTF("error renaming %s to %s: %s\n",
                 temp_checkpointfilename, perm_checkpointfilename,
                 strerror(errno));
     mtcp_abort ();
-  }
+	}
+	free(path);
+
+/*
+	if (rename (temp_checkpointfilename, perm_checkpointfilename) < 0) {
+    MTCP_PRINTF("error renaming %s to %s: %s\n",
+                temp_checkpointfilename, perm_checkpointfilename,
+                strerror(errno));
+    mtcp_abort ();
+  }*/
 }
 
 /*****************************************************************************

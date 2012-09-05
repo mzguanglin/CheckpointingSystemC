@@ -437,6 +437,10 @@ opt:
 pthreads:
 	$(MAKE) all CXXFLAGS="$(EXTRA_CXXFLAGS) $(OPT_CXXFLAGS) -DSC_USE_PTHREADS"
 
+mtcp: install
+	cd ../src/sysc/utils/mtcp && make clean && make libmtcp.so && cp mtcp.o mtcp_restart_nolibc.o mtcp_maybebpt.o mtcp_printf.o mtcp_util.o mtcp_safemmap.o mtcp_safe_open.o mtcp_state.o mtcp_check_vdso.o mtcp_sigaction.o mtcp_fastckpt.o mtcp.t ../../../../objdir/install-dir/lib-linux/ && cd cxx-utils && make clean && make && cp CkptDirectoryManager.o ../../../../../objdir/install-dir/lib-linux
+	cd ./install-dir/lib-linux && ar -x libsystemc.a && g++ -shared -fPIC  -T mtcp.t -Wl,-Map,mtcp.map -Wl,--no-gc-sections -Wl,--no-strip-discarded -o libsystemc.so *.o -ldl -lpthread -lm && rm *.o mtcp.t mtcp.map
+
 pthreads_debug:
 	$(MAKE) all CXXFLAGS="$(EXTRA_CXXFLAGS) $(DEBUG_CXXFLAGS) -DSC_USE_PTHREADS"
 

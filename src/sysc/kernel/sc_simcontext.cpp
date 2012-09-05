@@ -162,7 +162,6 @@
 #include "sysc/utils/sc_utils_ids.h"
 #include "sysc/utils/mtcp/mtcp.h"
 
-int checkpoint_number = 10;
 
 namespace sc_core {
 
@@ -1415,7 +1414,8 @@ void sc_simcontext::sc_set_checkpoint_period(int seconds) {
  * @param num
  */
 void sc_simcontext::sc_set_checkpoint_number(sc_dt::sc_digit num) {
-	checkpoint_number = num;
+	set_ckpt_num_limit(num);
+
 }
 
 /**
@@ -1423,7 +1423,7 @@ void sc_simcontext::sc_set_checkpoint_number(sc_dt::sc_digit num) {
  * @return number
  */
 sc_dt::sc_digit sc_simcontext::sc_get_checkpoint_number() {
-	return checkpoint_number;
+	return get_ckpt_num_limit();
 }
 
 // ----------------------------------------------------------------------------
