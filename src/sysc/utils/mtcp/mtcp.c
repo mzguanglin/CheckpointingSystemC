@@ -1935,7 +1935,7 @@ static void *checkpointhread (void *dummy)
 {
   int needrescan;
   struct timespec sleeperiod;
-  struct timeval started, stopped;
+  struct timeval started, write, stopped;
   Thread *thread;
   char * dmtcp_checkpoint_filename = NULL;
   int rounding_mode = -1;
@@ -2255,7 +2255,8 @@ again:
 
     if ( dmtcp_checkpoint_filename == NULL ||
          strcmp (dmtcp_checkpoint_filename, "/dev/null") != 0) {
-      checkpointeverything ();
+        mtcp_sys_gettimeofday (&write, NULL);
+    	checkpointeverything ();
     } else {
       MTCP_PRINTF("received \'/dev/null\' as ckpt filename.\n"
                   "*** Skipping checkpoint. ***\n");
@@ -2270,9 +2271,12 @@ again:
       mtcp_sys_gettimeofday (&stopped, NULL);
       stopped.tv_usec +=
         (stopped.tv_sec - started.tv_sec) * 1000000 - started.tv_usec;
-      MTCP_PRINTF("time %u uS, size %u megabytes, avg rate %u MB/s\n",
-                  stopped.tv_usec, (unsigned int)(checkpointsize / 1000000),
-                  (unsigned int)(checkpointsize / stopped.tv_usec));
+      write.tv_usec +=
+        (write.tv_sec - started.tv_sec) * 1000000 - started.tv_usec;
+      double percent = (double)write.tv_usec / stopped.tv_usec * 100.0;
+      MTCP_PRINTF("time %u uS, %f, write_time %u uS ",
+                  stopped.tv_usec, write.tv_usec );
+      printf(", %f%\n", percent);
     }
 
     /* This function is: checkpointhread();  So, only ckpt thread executes */
