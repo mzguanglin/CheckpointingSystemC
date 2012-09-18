@@ -107,6 +107,9 @@ private:
 
 	void fetch_working_dir_and_prog_name () {
 		//get working dir & program name
+		if (working_dir[0] != '\0' && program_name[0] != '\0') //fetch once!
+			return;
+
 		if ( -1 != readlink( "/proc/self/exe", program_name, _POSIX_PATH_MAX ) )
 		{
 			// now we get a string like /usr/bin/programname, we need convert it to work_dir and prog_name
@@ -125,10 +128,8 @@ private:
 	}
 
 
-
+public:
 private:
-	char working_dir[PATH_MAX];
-	char program_name[PATH_MAX];
 	vector<int> ckpt_img_entries;
 
 };

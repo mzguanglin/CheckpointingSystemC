@@ -43,18 +43,18 @@
                                25 August 2003
   Description of Modification: - support for dynamic process
                                - support for sc export registry
-                               - new member methods elaborate(), 
+                               - new member methods elaborate(),
 				 prepare_to_simulate(), and initial_crunch()
 				 that are invoked by initialize() in that order
                                - implement sc_get_last_created_process_handle() for use
                                  before simulation starts
-                               - remove "set_curr_proc(handle)" from 
-                                 register_method_process and 
+                               - remove "set_curr_proc(handle)" from
+                                 register_method_process and
                                  register_thread_process - led to bugs
-                               
+
       Name, Affiliation, Date: Andy Goodrich, Forte Design Systems 04 Sep 2003
   Description of Modification: - changed process existence structures to
-				 linked lists to eliminate exponential 
+				 linked lists to eliminate exponential
 				 execution problem with using sc_pvector.
  *****************************************************************************/
 // $Log: sc_simcontext.cpp,v $
@@ -219,7 +219,7 @@ sc_process_table::~sc_process_table()
 
     if ( m_thread_q || m_cthread_q )
     {
-        ::std::cout << ::std::endl 
+        ::std::cout << ::std::endl
              << "WATCH OUT!! In sc_process_table destructor. "
              << "Threads and cthreads are not actually getting deleted here. "
 	     << "Some memory may leak. Look at the comments here in "
@@ -232,10 +232,10 @@ sc_process_table::~sc_process_table()
     // before simulation-start are in this table. Due to performance
     // reasons, we don't look up the dying thread in the process table
     // and remove it from there. simcontext::reset and ~simcontext invoke this
-    // destructor. At present none of these routines are ever invoked. 
+    // destructor. At present none of these routines are ever invoked.
     // We can delete threads and cthreads here if a dying thread figured out
-    // it was created before simulation-start and took itself off the 
-    // process_table. 
+    // it was created before simulation-start and took itself off the
+    // process_table.
 
 #if 0
     sc_cthread_handle cthread_next_p;	// Next cthread to delete.
@@ -258,14 +258,14 @@ sc_process_table::~sc_process_table()
 }
 
 inline
-sc_cthread_handle 
+sc_cthread_handle
 sc_process_table::cthread_q_head()
 {
     return m_cthread_q;
 }
 
 inline
-sc_method_handle 
+sc_method_handle
 sc_process_table::method_q_head()
 {
     return m_method_q;
@@ -360,7 +360,7 @@ sc_process_table::remove( sc_thread_handle handle_ )
 }
 
 inline
-sc_thread_handle 
+sc_thread_handle
 sc_process_table::thread_q_head()
 {
     return m_thread_q;
@@ -397,7 +397,7 @@ sc_notify_time_compare( const void* p1, const void* p2 )
 
     const sc_time& t1 = et1->notify_time();
     const sc_time& t2 = et2->notify_time();
-    
+
     if( t1 < t2 ) {
 	return 1;
     } else if( t1 > t2 ) {
@@ -533,7 +533,7 @@ sc_simcontext::crunch( bool once )
     while ( true ) {
 
 	// EVALUATE PHASE
-	
+
 	m_execution_phase = phase_evaluate;
 	while( true ) {
 
@@ -588,7 +588,7 @@ sc_simcontext::crunch( bool once )
 	m_delta_count ++;
 	m_prim_channel_registry->perform_update();
 	m_execution_phase = phase_notify;
-	
+
 	if( m_something_to_trace ) {
 	    trace_cycle( /* delta cycle? */ true );
 	}
@@ -625,7 +625,7 @@ sc_simcontext::crunch( bool once )
 	    } while( -- i >= 0 );
 	    m_delta_events.resize(0);
 	}
-	
+
 	if( m_runnable->is_empty() ) {
 	    // no more runnable processes
 	    break;
@@ -636,7 +636,7 @@ sc_simcontext::crunch( bool once )
 	if ( once ) break;
 
 	m_runnable->toggle();
-    } 
+    }
 }
 
 inline
@@ -647,7 +647,7 @@ sc_simcontext::cycle( const sc_time& t)
 
     m_in_simulator_control = true;
     m_runnable->toggle();
-    crunch(); 
+    crunch();
     trace_cycle( /* delta cycle? */ false );
     m_curr_time += t;
     next_event_time = next_time();
@@ -677,8 +677,8 @@ sc_simcontext::elaborate()
 
     // SIGNAL THAT ELABORATION IS DONE
     //
-    // We set the switch before the calls in case someone creates a process 
-    // in an end_of_elaboration callback. We need the information to flag 
+    // We set the switch before the calls in case someone creates a process
+    // in an end_of_elaboration callback. We need the information to flag
     // the process as being dynamic.
 
     m_elaboration_done = true;
@@ -727,7 +727,7 @@ sc_simcontext::prepare_to_simulate()
     m_module_registry->start_simulation();
     m_start_of_simulation_called = true;
 
-    // CHECK FOR CALL(S) TO sc_stop 
+    // CHECK FOR CALL(S) TO sc_stop
 
     if( m_forced_stop ) {
         do_sc_stop_action();
@@ -736,13 +736,13 @@ sc_simcontext::prepare_to_simulate()
 
     // PREPARE ALL (C)THREAD PROCESSES FOR SIMULATION:
 
-    for ( thread_p = m_process_table->thread_q_head(); 
+    for ( thread_p = m_process_table->thread_q_head();
 	  thread_p; thread_p = thread_p->next_exist() )
     {
 	thread_p->prepare_for_simulation();
     }
 
-    for ( cthread_p = m_process_table->cthread_q_head(); 
+    for ( cthread_p = m_process_table->cthread_q_head();
 	  cthread_p; cthread_p = cthread_p->next_exist() )
     {
 	cthread_p->prepare_for_simulation();
@@ -761,7 +761,7 @@ sc_simcontext::prepare_to_simulate()
 
     // make all method processes runnable
 
-    for ( method_p = m_process_table->method_q_head(); 
+    for ( method_p = m_process_table->method_q_head();
 	  method_p; method_p = method_p->next_exist() )
     {
         if( !method_p->dont_initialize() ) {
@@ -771,7 +771,7 @@ sc_simcontext::prepare_to_simulate()
 
     // make all thread processes runnable
 
-    for ( thread_p = m_process_table->thread_q_head(); 
+    for ( thread_p = m_process_table->thread_q_head();
 	  thread_p; thread_p = thread_p->next_exist() )
     {
         if( !thread_p->dont_initialize() ) {
@@ -841,7 +841,7 @@ sc_simcontext::simulate( const sc_time& duration )
 	return;
     }
 
-    sc_time non_overflow_time = 
+    sc_time non_overflow_time =
         sc_time(~sc_dt::UINT64_ZERO, false) - m_curr_time;
     if ( duration > non_overflow_time )
     {
@@ -865,14 +865,14 @@ sc_simcontext::simulate( const sc_time& duration )
     //
     // We duplicate the code so that we don't add the overhead of the
     // check to each loop in the do below.
-    if ( duration == SC_ZERO_TIME ) 
+    if ( duration == SC_ZERO_TIME )
     {
         m_runnable->toggle();
   	crunch( true );
 	if( m_error ) return;
 	if( m_something_to_trace ) trace_cycle( /* delta cycle? */ false );
-	if( m_forced_stop ) 
-	    do_sc_stop_action(); 
+	if( m_forced_stop )
+	    do_sc_stop_action();
 	return;
     }
 
@@ -894,7 +894,7 @@ sc_simcontext::simulate( const sc_time& duration )
 	    do_sc_stop_action();
 	    return;
 	}
-	
+
 	do {
             t = next_time();
             sc_time t_ckpt = next_checkpoint_time();
@@ -977,8 +977,8 @@ sc_simcontext::do_sc_stop_action()
 //                         cycle and performs whatever updates are pending.
 //     SC_STOP_FINISH_DELTA - finishes the current delta cycle - both execution
 //                            and updates.
-// If sc_stop is called outside of the purview of the simulator kernel 
-// (e.g., directly from sc_main), the end of simulation notifications 
+// If sc_stop is called outside of the purview of the simulator kernel
+// (e.g., directly from sc_main), the end of simulation notifications
 // are performed. From within the purview of the simulator kernel, these
 // will be performed at a later time.
 //------------------------------------------------------------------------------
@@ -1001,7 +1001,7 @@ sc_simcontext::stop()
     if ( !m_in_simulator_control  )
     {
         do_sc_stop_action();
-    } 
+    }
 }
 
 void
@@ -1039,7 +1039,7 @@ sc_simcontext::hierarchy_curr() const
 {
     return DCAST<sc_module*>( m_object_manager->hierarchy_curr() );
 }
-    
+
 sc_object*
 sc_simcontext::first_object()
 {
@@ -1075,14 +1075,14 @@ sc_simcontext::gen_unique_name( const char* basename_, bool preserve_first )
 }
 
 
-sc_process_handle 
-sc_simcontext::create_cthread_process( 
-    const char* name_p, bool free_host, SC_ENTRY_FUNC method_p,         
+sc_process_handle
+sc_simcontext::create_cthread_process(
+    const char* name_p, bool free_host, SC_ENTRY_FUNC method_p,
     sc_process_host* host_p, const sc_spawn_options* opt_p )
 {
-    sc_cthread_handle handle = 
+    sc_cthread_handle handle =
         new sc_cthread_process(name_p, free_host, method_p, host_p, opt_p);
-    if ( m_ready_to_simulate ) 
+    if ( m_ready_to_simulate )
     {
 	handle->prepare_for_simulation();
     } else {
@@ -1092,12 +1092,12 @@ sc_simcontext::create_cthread_process(
 }
 
 
-sc_process_handle 
-sc_simcontext::create_method_process( 
-    const char* name_p, bool free_host, SC_ENTRY_FUNC method_p,         
+sc_process_handle
+sc_simcontext::create_method_process(
+    const char* name_p, bool free_host, SC_ENTRY_FUNC method_p,
     sc_process_host* host_p, const sc_spawn_options* opt_p )
 {
-    sc_method_handle handle = 
+    sc_method_handle handle =
         new sc_method_process(name_p, free_host, method_p, host_p, opt_p);
     if ( m_ready_to_simulate ) {
 	if ( !handle->dont_initialize() ) {
@@ -1110,12 +1110,12 @@ sc_simcontext::create_method_process(
 }
 
 
-sc_process_handle 
-sc_simcontext::create_thread_process( 
-    const char* name_p, bool free_host, SC_ENTRY_FUNC method_p,         
+sc_process_handle
+sc_simcontext::create_thread_process(
+    const char* name_p, bool free_host, SC_ENTRY_FUNC method_p,
     sc_process_host* host_p, const sc_spawn_options* opt_p )
 {
-    sc_thread_handle handle = 
+    sc_thread_handle handle =
         new sc_thread_process(name_p, free_host, method_p, host_p, opt_p);
     if ( m_ready_to_simulate ) {
 	handle->prepare_for_simulation();
@@ -1142,13 +1142,13 @@ sc_simcontext::next_cor()
     if( m_error ) {
 	return m_cor;
     }
-    
+
     sc_thread_handle thread_h = pop_runnable_thread();
     while( thread_h != 0 ) {
         if ( thread_h->ready_to_run() ) break;
 	thread_h = pop_runnable_thread();
     }
-    
+
     if( thread_h != 0 ) {
 	return thread_h->m_cor_p;
     } else {
@@ -1272,15 +1272,17 @@ sc_simcontext::trace_cycle( bool delta_cycle )
 }
 
 /**
- * checkpoint this simulation at next simulation time step
+ * Checkpoint at the next simulation time step.
+ * An sc_checkpoint_event will be inserted to the checkpoint event queue.
  */
 void sc_simcontext::sc_checkpoint(){
     sc_checkpoint(sc_time(time_stamp()));
 }
 
 /**
- * checkpoint this simulation at a specified simulation time.
- * @param time an sc_time argument
+ * Checkpoint at a specified simulation time.
+ * An sc_checkpoint_event will be inserted to the checkpoint event queue.
+ * @param time
  */
 void sc_simcontext::sc_checkpoint(const sc_time& t) {
 	if (t >= m_curr_time) {
@@ -1295,22 +1297,24 @@ void sc_simcontext::sc_checkpoint(const sc_time& t) {
 }
 
 /**
- * checkpoint this simulation at a specified simulation time.
+ * Checkpoint at a specified simulation time.
+ * An sc_checkpoint_event will be inserted to the checkpoint event queue.
  * @param val time value
- * @param unit unit of time
+ * @param unit time unit
  */
 void sc_simcontext::sc_checkpoint(double v, sc_time_unit tu) {
 	sc_checkpoint( sc_time( v, tu) );
 }
 
 /**
- * set checkpoint period by simulation time.
+ * Set checkpoint period by simulation time. To cancel it, invoke with SC_ZERO_TIME param.
  * We perform an instant checkpoint once this function is called with non-SC_ZERO_TIME.
- * Caution: we don't support wall clock periodicity and simulation time periodicity
- * simultaneously.
- * (1) Set up wall clock periodicity will replace simulation time periodicity.
- * (2) However, wall clock periodicity can't be replaced by simulation time periodicity or canceled.
- * @param time period, SC_ZERO_TIME to disable periodicity.
+ *
+ * Caution: we don't simultaneously support wall clock periodicity and simulation time periodicity.
+ *  (1) Set up wall clock periodicity will disable simulation time periodicity.
+ *  (2) However, wall clock periodicity can't be disabled by setting up simulation time periodicity.
+ *
+ * @param time period SC_ZERO_TIME to disable periodicity.
  */
 void sc_simcontext::sc_set_checkpoint_period(const sc_time& time) {
 
@@ -1337,27 +1341,23 @@ void sc_simcontext::sc_set_checkpoint_period(const sc_time& time) {
 }
 
 /**
- * set checkpoint period by simulation time.
- * We perform an instant checkpoint once this function is called with non-zero sc_time.
- * Caution: we don't support wall clock periodicity and simulation time periodicity
- * simultaneously.
- * (1) Set up wall clock periodicity will replace simulation time periodicity.
- * (2) However, wall clock periodicity can't be replaced by simulation time periodicity or canceled.
+ * Set checkpoint period by simulation time.
  * @param v time value
  * @param tu time unit
  */
 void sc_simcontext::sc_set_checkpoint_period(double v, sc_time_unit tu) {
 	sc_time t( v, tu);
-	sc_set_checkpoint_period(t );
+	sc_set_checkpoint_period(t);
 }
 
 /**
- * set checkpoint period by wall clock.
- * We perform an instant checkpoint once this function is called with non-zero sc_time.
- * Caution: we don't support wall clock periodicity and simulation time periodicity
- * simultaneously.
- * (1) Set up wall clock periodicity will replace simulation time periodicity.
- * (2) However, wall clock periodicity can't be replaced by simulation time periodicity or canceled.
+ * Set checkpoint period by wall clock. It can't be canceled once set up.
+ *
+ * We perform an instant checkpoint once this function is called with non-SC_ZERO_TIME.
+ * Caution: we don't simultaneously support wall clock periodicity and simulation time periodicity.
+ *  (1) Set up wall clock periodicity will disable simulation time periodicity.
+ *  (2) However, wall clock periodicity can't be disabled by setting up simulation time periodicity.
+ *
  * @param seconds of a wall clock.
  */
 void sc_simcontext::sc_set_checkpoint_period(int seconds) {
@@ -1383,34 +1383,12 @@ void sc_simcontext::sc_set_checkpoint_period(int seconds) {
 	} else if (m_checkpoint_wall_clock_time_period != 0 && seconds == 0) {
 		std::cout<<"Sorry, we can not disable wall_clock_time_periodcity once set up."<<std::endl;
 	}
-
-	/*
-	 * we also plan a flexible implementation. It's a bit complex and costly.
-	if (m_checkpoint_wall_clock_time_period != seconds) {
-		if (m_checkpoint_wall_clock_time_period && seconds) { // change period
-			// kill thread
-
-			// re-create a timer thread - inserting a checkpoint event periodically
-
-		} else if (!m_checkpoint_wall_clock_time_period && seconds ) { //set period
-			// disable simulation time periodicity.
-			sc_set_checkpoint_period(SC_ZERO_TIME);
-
-			// create a timer thread - inserting a checkpoint event periodically
-
-		} else if (m_checkpoint_wall_clock_time_period && !seconds) { // disable periodicity
-			// kill thread
-
-		}
-
-		m_checkpoint_wall_clock_time_period = seconds;
-	}
-	*/
 }
 
 /**
  * set number of checkpoint images we will keep.
- * In default, we keep 10 checkpoint images.
+ * By default, we keep 10 checkpoint images. In this case, we can hold
+ *  proc_name.ckpt.n, proc_name.ckpt.[n+1] ... proc_name.ckpt.[n+9] from time to time.
  * @param num
  */
 void sc_simcontext::sc_set_checkpoint_number(sc_dt::sc_digit num) {
@@ -1483,7 +1461,7 @@ sc_gen_unique_name( const char* basename_, bool preserve_first )
 //
 // Note that this method should not be called if the current process is
 // in the act of being deleted, it will mess up the reference count management
-// of sc_process_b instance the handle represents. Instead, use the a 
+// of sc_process_b instance the handle represents. Instead, use the a
 // pointer to the raw sc_process_b instance, which may be acquired via
 // sc_get_current_process_b().
 
@@ -1491,7 +1469,7 @@ sc_process_handle
 sc_get_current_process_handle()
 {
     return ( sc_is_running() ) ?
-	sc_process_handle(sc_get_current_process_b()) : 
+	sc_process_handle(sc_get_current_process_b()) :
 	sc_get_last_created_process_handle();
 }
 
@@ -1540,11 +1518,11 @@ sc_start( const sc_time& duration )
 
     context = sc_get_curr_simcontext();
     status = context->sim_status();
-    if( status != SC_SIM_OK ) 
+    if( status != SC_SIM_OK )
     {
 	if ( status == SC_SIM_USER_STOP )
 	{
-	    SC_REPORT_ERROR(SC_ID_SIMULATION_START_AFTER_STOP_, "");        
+	    SC_REPORT_ERROR(SC_ID_SIMULATION_START_AFTER_STOP_, "");
 	}
         return;
     }
@@ -1552,7 +1530,7 @@ sc_start( const sc_time& duration )
 }
 
 void
-sc_start()  
+sc_start()
 {
 	sc_start( sc_time(~sc_dt::UINT64_ZERO, false) - sc_time_stamp() );
 }
@@ -1571,7 +1549,7 @@ sc_start( double duration )  // in default time units
 
     if( duration == -1 )  // simulate forever
     {
-        sc_start( 
+        sc_start(
             sc_time(~sc_dt::UINT64_ZERO, false) - sc_time_stamp() );
     }
     else

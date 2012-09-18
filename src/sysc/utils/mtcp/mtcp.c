@@ -1878,14 +1878,16 @@ static void restore_term_settings() {
   if (kill(getpid(), SIGWINCH) == -1) {}  /* No remedy if error */
 }
 
-/*************************************************************************
+/**
  *
  *  Do a checkpoint immediately by use of semaphore.
  *  We use this because we have replace sleep() in checkpointhread() by semaphore.
+ *  Remember we don't simultaneously support simulation time periodicity and wall clock periodicity.
+ *  Once setup wall clock periodicity, you can not cancel it.
  *  @param comments
- *  @param wall_clock_sleep_seconds_next non-zero if you want to use sleep() later
+ *  @param wall_clock_sleep_seconds_next For wall clock periodicity, give a positive integer. Otherwise, always 0.
  *
- *************************************************************************/
+ */
 void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next)
 {
 	if (checkpoint_wall_clock_time_period == 0) {
@@ -1916,10 +1918,18 @@ void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next)
 	}
 }
 
+/**
+ * An interface serves for SystemC simulation kernel.
+ * @param limit
+ */
 void set_ckpt_num_limit(int limit) {
 	ckpt_num_limit = limit;
 }
 
+/**
+ * An interface serves for SystemC simulation kernel.
+ * @return checkpoint number limit.
+ */
 int get_ckpt_num_limit() {
 	return ckpt_num_limit;
 }

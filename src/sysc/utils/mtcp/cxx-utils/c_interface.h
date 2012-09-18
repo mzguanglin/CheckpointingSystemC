@@ -9,6 +9,9 @@
 extern "C" {
 #endif
 
+char working_dir[PATH_MAX];
+char program_name[PATH_MAX];
+
 // don't foget to free the return pointer after used
 char* get_next_ckpt_img_path(int ckpt_img_num_limit);
 
