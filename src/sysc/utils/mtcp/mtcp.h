@@ -47,7 +47,7 @@ int mtcp_wrapper_clone (int (*fn) (void *arg), void *child_stack, int flags, voi
 int mtcp_ok (void);
 int mtcp_no (void);
 
-void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next);
+void do_checkpoint_by_sem (char* comments, int switch_to_elapsed_real_time_periodic);
 void set_ckpt_num_limit(int limit);
 int get_ckpt_num_limit();
 

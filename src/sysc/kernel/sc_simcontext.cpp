@@ -463,7 +463,7 @@ sc_simcontext::init()
     reset_curr_proc();
     m_next_proc_id = -1;
     m_checkpoint_simulation_time_period = SC_ZERO_TIME;
-    m_checkpoint_wall_clock_time_period = 0;
+    m_checkpoint_elapsed_real_time_period = 0;
     m_timed_events = new sc_ppq<sc_event_timed*>( 128, sc_notify_time_compare );
     m_checkpoint_timed_events = new sc_ppq<sc_checkpoint_event*>( 128, sc_checkpoint_time_compare );
     m_something_to_trace = false;
@@ -912,18 +912,18 @@ sc_simcontext::simulate( const sc_time& duration )
                 	delete ce;
             	}
 
-            	else if (ce->get_periodicity_type() == sc_checkpoint_event::WALL_CLOCK_TIME_FIRST
-    					&& m_checkpoint_wall_clock_time_period != 0)
-            	// WALL_CLOCK_TIME_FIRST, perform a checkpoint, set flag.
+            	else if (ce->get_periodicity_type() == sc_checkpoint_event::ELAPSED_REAL_TIME_FIRST
+    					&& m_checkpoint_elapsed_real_time_period != 0)
+            	// ELAPSED_REAL_TIME_FIRST, perform a checkpoint, set flag.
             	{
             		// Perform checkpointing
-            		do_checkpoint_by_sem("post WALL_CLOCK_TIME_FIRST checkpoint sem..", m_checkpoint_wall_clock_time_period);
+            		do_checkpoint_by_sem("post ELAPSED_REAL_TIME_FIRST checkpoint sem..", m_checkpoint_elapsed_real_time_period);
 
 	          		delete ce;
             	} else if (ce->get_periodicity_type() == sc_checkpoint_event::SIMULATION_TIME
     					&& m_checkpoint_simulation_time_period != SC_ZERO_TIME
     					&& m_checkpoint_simulation_time_period == ce->get_checkpoint_sc_period()
-    					&& m_checkpoint_wall_clock_time_period == 0)
+    					&& m_checkpoint_elapsed_real_time_period == 0)
             	// SIMULATION_TIME periodicity, perform a checkpoint, re-create an event
             	{
             		// Perform checkpointing
@@ -1318,8 +1318,8 @@ void sc_simcontext::sc_checkpoint(double v, sc_time_unit tu) {
  */
 void sc_simcontext::sc_set_checkpoint_period(const sc_time& time) {
 
-	// a restrict implementation. can not set up if wall_clock_time_periodcity has been set up before.
-	if (m_checkpoint_wall_clock_time_period == 0 && m_checkpoint_simulation_time_period != time) {
+	// a restrict implementation. can not set up if elapsed_real_time_periodcity has been set up before.
+	if (m_checkpoint_elapsed_real_time_period == 0 && m_checkpoint_simulation_time_period != time) {
 		if (time != SC_ZERO_TIME) { //set up or change period
 			// perform an instant checkpoint event;
 			sc_checkpoint_event* e = new sc_checkpoint_event(this->m_curr_time, sc_checkpoint_event::SIMULATION_TIME, time);
@@ -1333,8 +1333,8 @@ void sc_simcontext::sc_set_checkpoint_period(const sc_time& time) {
 	}
 
 	//echo warnings
-	if (m_checkpoint_wall_clock_time_period != 0 && time != SC_ZERO_TIME) {
-		std::cout<<"Sorry, we can not change period settings any more because you once set up wall_clock_time_periodcity."<<std::endl;
+	if (m_checkpoint_elapsed_real_time_period != 0 && time != SC_ZERO_TIME) {
+		std::cout<<"Sorry, we can not change period settings any more because you once set up elapsed_real_time_periodcity."<<std::endl;
 	} else if (m_checkpoint_simulation_time_period == time && time != SC_ZERO_TIME) {
 		std::cout<<"m_checkpoint_simulation_time_period == time, meaningless."<<std::endl;
 	}
@@ -1363,25 +1363,25 @@ void sc_simcontext::sc_set_checkpoint_period(double v, sc_time_unit tu) {
 void sc_simcontext::sc_set_checkpoint_period(int seconds) {
 
 	// a restrict implementation: can't change or disable wall clock period once set it up.
-	if (m_checkpoint_wall_clock_time_period == 0 && seconds > 0) { // set up
+	if (m_checkpoint_elapsed_real_time_period == 0 && seconds > 0) { // set up
 
-		m_checkpoint_wall_clock_time_period = seconds;
+		m_checkpoint_elapsed_real_time_period = seconds;
 
 		// disable simulation time periodicity.
 		sc_set_checkpoint_period(SC_ZERO_TIME);
 
 		// schedule an instant checkpoint event;
-		sc_checkpoint_event* e = new sc_checkpoint_event(this->m_curr_time, sc_checkpoint_event::WALL_CLOCK_TIME_FIRST, SC_ZERO_TIME);
+		sc_checkpoint_event* e = new sc_checkpoint_event(this->m_curr_time, sc_checkpoint_event::ELAPSED_REAL_TIME_FIRST, SC_ZERO_TIME);
 		m_checkpoint_timed_events->insert(e);
 
 		return;
 	}
 
 	// echo warnings
-	if (m_checkpoint_wall_clock_time_period == seconds) {
-		std::cout<<"m_checkpoint_wall_clock_time_period == seconds, meaningless."<<std::endl;
-	} else if (m_checkpoint_wall_clock_time_period != 0 && seconds == 0) {
-		std::cout<<"Sorry, we can not disable wall_clock_time_periodcity once set up."<<std::endl;
+	if (m_checkpoint_elapsed_real_time_period == seconds) {
+		std::cout<<"m_checkpoint_elapsed_real_time_period == seconds, meaningless."<<std::endl;
+	} else if (m_checkpoint_elapsed_real_time_period != 0 && seconds == 0) {
+		std::cout<<"Sorry, we can not disable elapsed_real_time_periodcity once set up."<<std::endl;
 	}
 }
 

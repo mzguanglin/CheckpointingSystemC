@@ -350,7 +350,7 @@ static int TLS_PID_OFFSET(void) {
 static sem_t sem_start;
 static sem_t sem_ckpt; // checkpoint sem, ref by SystemC kernel
 static sem_t sem_wait_ckpt_fini;
-static int checkpoint_wall_clock_time_period = 0;
+static int checkpoint_elapsed_real_time_period = 0;
 static int restart_need_post_sem = 0;
 static int ckpt_num_limit = 10;
 
@@ -1885,17 +1885,17 @@ static void restore_term_settings() {
  *  Remember we don't simultaneously support simulation time periodicity and wall clock periodicity.
  *  Once setup wall clock periodicity, you can not cancel it.
  *  @param comments
- *  @param wall_clock_sleep_seconds_next For wall clock periodicity, give a positive integer. Otherwise, always 0.
+ *  @param switch_to_elapsed_real_periodic For wall clock periodicity, give a positive integer. Otherwise, always 0.
  *
  */
-void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next)
+void do_checkpoint_by_sem (char* comments, int switch_to_elapsed_real_time_periodic)
 {
-	if (checkpoint_wall_clock_time_period == 0) {
+	if (checkpoint_elapsed_real_time_period == 0) {
 		restart_need_post_sem = 1;
 		DPRINTF("%s\n", comments);
 
-		if (wall_clock_sleep_seconds_next > 0) {
-			checkpoint_wall_clock_time_period = wall_clock_sleep_seconds_next;
+		if (switch_to_elapsed_real_time_periodic > 0) {
+			checkpoint_elapsed_real_time_period = switch_to_elapsed_real_time_periodic;
 		}
 
 		if (sem_post(&sem_ckpt) != 0) {
@@ -1913,7 +1913,7 @@ void do_checkpoint_by_sem (char* comments, int wall_clock_sleep_seconds_next)
 	}
 
 	// echo warnings
-	if (checkpoint_wall_clock_time_period != 0){
+	if (checkpoint_elapsed_real_time_period != 0){
 		MTCP_PRINTF("WARNING: you had switched to wall clock periodicity before, can not change any more.\n");
 	}
 }
@@ -2023,19 +2023,19 @@ static void *checkpointhread (void *dummy)
 
   while (1) {
 
-	  if (checkpoint_wall_clock_time_period && restart_need_post_sem == 0) {
+	  if (checkpoint_elapsed_real_time_period && restart_need_post_sem == 0) {
 		    if (callback_sleep_between_ckpt == NULL)
 		    {
-				MTCP_PRINTF("wait %d seconds ...\n", checkpoint_wall_clock_time_period);
+				MTCP_PRINTF("wait %d seconds ...\n", checkpoint_elapsed_real_time_period);
 		    	memset (&sleeperiod, 0, sizeof sleeperiod);
-		        sleeperiod.tv_sec = checkpoint_wall_clock_time_period;
+		        sleeperiod.tv_sec = checkpoint_elapsed_real_time_period;
 		        while (nanosleep (&sleeperiod, &sleeperiod) < 0 && errno == EINTR) {}
 		    }
 		    else
 		    {
-		        DPRINTF("before callback_sleep_between_ckpt(%d)\n",(int)checkpoint_wall_clock_time_period);
-		        (*callback_sleep_between_ckpt)(checkpoint_wall_clock_time_period);
-		        DPRINTF("after callback_sleep_between_ckpt(%d)\n",checkpoint_wall_clock_time_period);
+		        DPRINTF("before callback_sleep_between_ckpt(%d)\n",(int)checkpoint_elapsed_real_time_period);
+		        (*callback_sleep_between_ckpt)(checkpoint_elapsed_real_time_period);
+		        DPRINTF("after callback_sleep_between_ckpt(%d)\n",checkpoint_elapsed_real_time_period);
 		    }
 	  } else {
 

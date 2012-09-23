@@ -181,7 +181,7 @@ public:
 	enum CKPT_PERIODICITY_TYPE {
 		NONE_PERIODICITY,
 		SIMULATION_TIME,
-		WALL_CLOCK_TIME_FIRST
+		ELAPSED_REAL_TIME_FIRST
 	};
 
 	sc_checkpoint_event(const sc_time& checkpoint_time,
@@ -406,7 +406,7 @@ private:
     sc_ppq<sc_checkpoint_event*>* m_checkpoint_timed_events;
 
     sc_time m_checkpoint_simulation_time_period; // must initilize as 0
-    int m_checkpoint_wall_clock_time_period; // must initilize as 0
+    int m_checkpoint_elapsed_real_time_period; // must initilize as 0
 
     std::vector<sc_trace_file*> m_trace_files;
     bool                        m_something_to_trace;
