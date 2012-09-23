@@ -349,7 +349,7 @@ installdirs: installdirs-recursive
 installdirs-am:
 
 install: install-recursive
-	cd ../src/sysc/utils/mtcp && make clean && make libmtcp.so && cp mtcp.o mtcp_restart_nolibc.o mtcp_maybebpt.o mtcp_printf.o mtcp_util.o mtcp_safemmap.o mtcp_safe_open.o mtcp_state.o mtcp_check_vdso.o mtcp_sigaction.o mtcp_fastckpt.o mtcp.t $(prefix)/lib-linux/ && cd cxx-utils && make clean && make && cp CkptDirectoryManager.o $(prefix)/lib-linux
+	cd ../src/sysc/utils/mtcp && make clean && make libmtcp.so && make mtcp_restart && cp mtcp_restart mtcp.o mtcp_restart_nolibc.o mtcp_maybebpt.o mtcp_printf.o mtcp_util.o mtcp_safemmap.o mtcp_safe_open.o mtcp_state.o mtcp_check_vdso.o mtcp_sigaction.o mtcp_fastckpt.o mtcp.t $(prefix)/lib-linux/ && cd cxx-utils && make clean && make && cp CkptDirectoryManager.o $(prefix)/lib-linux
 	cd $(prefix)/lib-linux && ar -x libsystemc.a && g++ -shared -fPIC  -T mtcp.t -Wl,-Map,mtcp.map -Wl,--no-gc-sections -Wl,--no-strip-discarded -o libsystemc.so *.o -ldl -lpthread -lm && rm *.o mtcp.t mtcp.map
 
 install-exec: install-exec-recursive
